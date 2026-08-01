@@ -1,4 +1,6 @@
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+export const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "https://aarchive-api.onrender.com"
+).replace(/\/$/, "");
 
 export type ApiProject = {
   project_id: string;
