@@ -5,6 +5,6 @@ WORKDIR /app
 COPY backend/pyproject.toml /app/pyproject.toml
 COPY backend/aarchive /app/aarchive
 RUN pip install --no-cache-dir .
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('tiny.en', device='cpu', compute_type='int8')"
 ENV PORT=8000
 CMD ["sh", "-c", "uvicorn aarchive.main:app --host 0.0.0.0 --port ${PORT}"]
-

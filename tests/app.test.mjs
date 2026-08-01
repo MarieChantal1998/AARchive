@@ -26,6 +26,7 @@ test("frontend sources contain no credential-shaped environment access", async (
   const sources = await Promise.all([
     "app/page.tsx",
     "app/layout.tsx",
+    "app/lib/api.ts",
     "app/lib/demo-data.ts",
     "app/upload/UploadForm.tsx",
     "app/search/SearchExperience.tsx",
@@ -34,4 +35,3 @@ test("frontend sources contain no credential-shaped environment access", async (
   assert.doesNotMatch(combined, /B2_APP_KEY|B2_KEY_ID|OPENAI_API_KEY|sk-[A-Za-z0-9]/);
   assert.doesNotMatch(combined, /process\.env\.(?!NEXT_PUBLIC_)/);
 });
-

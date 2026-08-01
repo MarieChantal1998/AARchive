@@ -9,10 +9,14 @@ dependencies = [
   "pydantic-settings==2.10.1",
   "boto3==1.40.1",
   "python-multipart==0.0.20",
+  "faster-whisper==1.2.0",
+  "requests==2.32.4",
   "openai==1.98.0",
   "genblaze==0.4.5",
   "genblaze-core==0.3.8",
   "genblaze-openai==0.3.4",
+  "genblaze-gmicloud==0.3.5",
+  "genblaze-nvidia==0.3.3",
   "genblaze-s3==0.3.6",
 ]
 

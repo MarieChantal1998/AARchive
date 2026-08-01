@@ -1,8 +1,9 @@
 import logging
 from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid5
 
+from .generation_providers import ProviderConfigurationError, provider_for
 from .models import Brief, BriefRequest, Scene
 from .settings import Settings
 
@@ -28,36 +29,46 @@ class MediaRun:
 
 
 class GenblazeBriefService:
-    """Small, testable boundary around the real Genblaze 0.4.x API."""
+    """Provider-neutral boundary around a real Genblaze Pipeline and B2 sink."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
 
     @property
     def available(self) -> bool:
-        return self.settings.generation_configured
+        return self.settings.generation_can_run
+
+    @staticmethod
+    def brief_id_for(request: BriefRequest) -> str:
+        scene_key = ",".join(sorted(request.scene_ids))
+        return str(uuid5(NAMESPACE_URL, f"aarchive:v1:{request.project_id}:{scene_key}"))
 
     def generate(self, request: BriefRequest, project_title: str, scenes: list[Scene]) -> Brief:
         if not self.available:
+            if self.settings.generation_mode != "generate_once":
+                raise GenerationUnavailable(
+                    "Public generation is cached-only. A previously generated B2 brief is returned when available."
+                )
             raise GenerationUnavailable(
-                "Live generation needs server-side OpenAI and Backblaze B2 credentials. The demo preview remains available."
+                f"{self.settings.generation_provider} generation needs a server-side provider key and Backblaze B2 credentials."
             )
-        brief_id = str(uuid4())
+        brief_id = self.brief_id_for(request)
         title = request.title or f"After-Action Brief · {project_title}"
         narration = self._narration(title, scenes)
         cover_prompt = self._cover_prompt(title, scenes)
         try:
-            image = self._run_image(request.project_id, brief_id, cover_prompt)
-            audio = self._run_audio(request.project_id, brief_id, narration)
-        except GenerationUnavailable:
-            raise
+            provider = provider_for(self.settings)
+            image, audio, manifest_hash, manifest_uri, verified, run_id = self._run_pipeline(
+                request.project_id, brief_id, cover_prompt, narration, provider
+            )
+        except ProviderConfigurationError as exc:
+            raise GenerationUnavailable(str(exc)) from exc
         except Exception as exc:  # provider exceptions are intentionally normalized
             logger.exception("genblaze_generation_failed", extra={"project_id": request.project_id})
             raise GenerationFailed(
-                "The media provider did not complete the brief. No success state was saved; please retry once."
+                "The media provider did not complete the one-time demo run. No success state was saved."
             ) from exc
 
-        hashes = [image.manifest_hash, audio.manifest_hash]
         return Brief(
             brief_id=brief_id,
             project_id=request.project_id,
@@ -86,21 +97,23 @@ class GenblazeBriefService:
             review_notice="Generated from selected footage observations and must be reviewed by a qualified human.",
             cover_url=image.url,
             narration_url=audio.url,
-            provider="OpenAI via Genblaze",
-            models=[self.settings.openai_image_model, self.settings.openai_tts_model],
+            provider=provider.display_name,
+            models=[provider.image_model, provider.audio_model],
             generated_at=_utcnow(),
-            manifest_hash=_combined_hash(hashes),
-            manifest_uri=image.manifest_uri,
-            verification_status="verified" if image.verified and audio.verified else "unverified",
+            manifest_hash=manifest_hash,
+            manifest_uri=manifest_uri,
+            verification_status="verified" if verified else "unverified",
             provenance={
                 "pipeline": "aarchive-after-action-brief",
-                "image_run_id": image.run_id,
-                "audio_run_id": audio.run_id,
+                "run_id": run_id,
+                "provider": provider.slug,
+                "image_model": provider.image_model,
+                "audio_model": provider.audio_model,
                 "image_sha256": image.sha256,
                 "audio_sha256": audio.sha256,
-                "image_manifest_hash": image.manifest_hash,
-                "audio_manifest_hash": audio.manifest_hash,
+                "manifest_hash": manifest_hash,
                 "storage_sink": "Backblaze B2 via Genblaze ObjectStorageSink",
+                "generation_mode": "generated_once_then_cached",
             },
         )
 
@@ -122,50 +135,43 @@ class GenblazeBriefService:
             key_strategy=KeyStrategy.HIERARCHICAL,
         )
 
-    def _run_image(self, project_id: str, brief_id: str, prompt: str) -> MediaRun:
+    def _run_pipeline(self, project_id: str, brief_id: str, cover_prompt: str, narration: str, provider):
         from genblaze_core import Modality, Pipeline
-        from genblaze_openai import DalleProvider
 
         result = (
-            Pipeline("aarchive-brief-cover", project_id=project_id)
+            Pipeline("aarchive-after-action-brief", project_id=project_id)
             .step(
-                DalleProvider(api_key=self.settings.openai_api_key),
-                model=self.settings.openai_image_model,
-                prompt=prompt,
+                provider.image_factory(),
+                model=provider.image_model,
+                prompt=cover_prompt,
                 modality=Modality.IMAGE,
-                size="1536x1024",
-                quality="medium",
+                **provider.image_params,
             )
-            .run(
-                sink=self._sink(project_id, brief_id),
-                timeout=self.settings.generation_timeout_seconds,
-                max_retries=1,
-            )
-        )
-        return _media_run(result)
-
-    def _run_audio(self, project_id: str, brief_id: str, narration: str) -> MediaRun:
-        from genblaze_core import Modality, Pipeline
-        from genblaze_openai import OpenAITTSProvider
-
-        result = (
-            Pipeline("aarchive-brief-narration", project_id=project_id)
             .step(
-                OpenAITTSProvider(api_key=self.settings.openai_api_key),
-                model=self.settings.openai_tts_model,
+                provider.audio_factory(),
+                model=provider.audio_model,
                 prompt=narration,
                 modality=Modality.AUDIO,
-                voice=self.settings.openai_tts_voice,
-                response_format="mp3",
-                instructions="Calm, concise professional training facilitator; neutral and observational.",
-            )
-            .run(
-                sink=self._sink(project_id, brief_id),
-                timeout=self.settings.generation_timeout_seconds,
-                max_retries=1,
+                **provider.audio_params,
             )
         )
-        return _media_run(result)
+        completed = result.run(
+            sink=self._sink(project_id, brief_id),
+            timeout=self.settings.generation_timeout_seconds,
+            max_retries=1,
+        )
+        if len(completed.run.steps) != 2:
+            raise GenerationFailed("Genblaze did not return both required media steps")
+        image = _asset_run(completed.run.steps[0].assets[0])
+        audio = _asset_run(completed.run.steps[1].assets[0])
+        return (
+            image,
+            audio,
+            completed.manifest.canonical_hash,
+            completed.manifest.manifest_uri,
+            bool(completed.manifest.verify()),
+            completed.run.run_id,
+        )
 
     @staticmethod
     def _narration(title: str, scenes: list[Scene]) -> str:
@@ -192,26 +198,18 @@ class GenblazeBriefService:
         )
 
 
-def _media_run(result: Any) -> MediaRun:
-    asset = result.run.steps[0].assets[0]
+def _asset_run(asset: Any) -> MediaRun:
     return MediaRun(
         url=asset.url,
         sha256=asset.sha256,
-        manifest_hash=result.manifest.canonical_hash,
-        manifest_uri=result.manifest.manifest_uri,
-        verified=bool(result.manifest.verify()),
-        run_id=result.run.run_id,
+        manifest_hash="",
+        manifest_uri=None,
+        verified=False,
+        run_id="",
     )
-
-
-def _combined_hash(hashes: list[str]) -> str:
-    import hashlib
-
-    return hashlib.sha256("|".join(hashes).encode()).hexdigest()
 
 
 def _utcnow():
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc)
-

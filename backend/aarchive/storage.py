@@ -6,7 +6,7 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-from .keys import metadata_key
+from .keys import frame_key, metadata_key, source_key
 from .models import Correction, Project, Scene
 from .seed import DEMO_SCENES, demo_project
 from .settings import Settings
@@ -49,6 +49,33 @@ class B2Store:
             ContentType="application/json",
         )
 
+    def put_bytes(self, key: str, payload: bytes, content_type: str) -> None:
+        self.client.put_object(
+            Bucket=self.settings.b2_bucket,
+            Key=key,
+            Body=payload,
+            ContentType=content_type,
+        )
+
+    def exists(self, key: str) -> bool:
+        try:
+            self.client.head_object(Bucket=self.settings.b2_bucket, Key=key)
+            return True
+        except ClientError as exc:
+            code = str(exc.response.get("Error", {}).get("Code", ""))
+            if code in {"404", "NoSuchKey", "NotFound"}:
+                return False
+            raise StorageUnavailable(f"Could not verify B2 object {key}") from exc
+
+    def connected(self) -> bool:
+        if not self.configured:
+            return False
+        try:
+            self.client.head_bucket(Bucket=self.settings.b2_bucket)
+            return True
+        except (ClientError, BotoCoreError):
+            return False
+
     def get_json(self, key: str) -> Any:
         try:
             response = self.client.get_object(Bucket=self.settings.b2_bucket, Key=key)
@@ -72,6 +99,23 @@ class B2Store:
         except (ClientError, BotoCoreError, StorageUnavailable):
             return projects
         return sorted(projects, key=lambda project: project.created_at, reverse=True)
+
+    def with_download_urls(self, project: Project) -> Project:
+        hydrated = project.model_copy(deep=True)
+        if hydrated.seeded_demo:
+            return hydrated
+        if self.exists(source_key(project.project_id)):
+            hydrated.video_url = self.presign_download(source_key(project.project_id))
+        if hydrated.indexed_scene_count and self.exists(frame_key(project.project_id, 1)):
+            hydrated.thumbnail_url = self.presign_download(frame_key(project.project_id, 1))
+        return hydrated
+
+    def list_keys(self, prefix: str = "projects/") -> list[dict[str, Any]]:
+        output: list[dict[str, Any]] = []
+        paginator = self.client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.settings.b2_bucket, Prefix=prefix):
+            output.extend({"key": item["Key"], "size": item["Size"]} for item in page.get("Contents", []))
+        return output
 
     def get_project(self, project_id: str) -> Project:
         if project_id == "demo-coordinated-response":
@@ -110,4 +154,3 @@ def _json_default(value: Any) -> str:
     if isinstance(value, datetime):
         return value.isoformat()
     return str(value)
-

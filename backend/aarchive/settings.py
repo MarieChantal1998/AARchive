@@ -20,6 +20,23 @@ class Settings(BaseSettings):
     b2_app_key: str = ""
     b2_public_url_base: str = ""
 
+    transcription_provider: str = "local_whisper"
+    local_whisper_model: str = "tiny.en"
+    analysis_provider: str = "local"
+
+    generation_provider: str = "gmicloud"
+    generation_mode: str = "cached_only"
+
+    gmi_api_key: str = ""
+    gmi_text_model: str = "deepseek-ai/DeepSeek-V3"
+    gmi_image_model: str = "seedream-5.0-lite"
+    gmi_audio_model: str = "elevenlabs-tts-v3"
+    gmi_audio_voice: str = "Rachel"
+
+    nvidia_api_key: str = ""
+    nvidia_image_model: str = "black-forest-labs/flux.1-schnell"
+    nvidia_audio_model: str = "nvidia/magpie-tts-multilingual"
+
     openai_api_key: str = ""
     openai_transcription_model: str = "gpt-4o-mini-transcribe"
     openai_analysis_model: str = "gpt-4.1-mini"
@@ -42,10 +59,26 @@ class Settings(BaseSettings):
 
     @property
     def generation_configured(self) -> bool:
-        return self.b2_configured and bool(self.openai_api_key)
+        if not self.b2_configured:
+            return False
+        return bool(self.generation_api_key)
+
+    @property
+    def generation_api_key(self) -> str:
+        provider = self.generation_provider.lower()
+        if provider == "gmicloud":
+            return self.gmi_api_key
+        if provider == "nvidia":
+            return self.nvidia_api_key
+        if provider == "openai":
+            return self.openai_api_key
+        return ""
+
+    @property
+    def generation_can_run(self) -> bool:
+        return self.generation_mode == "generate_once" and self.generation_configured
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

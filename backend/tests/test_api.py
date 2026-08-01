@@ -1,7 +1,9 @@
 from fastapi.testclient import TestClient
 
 from aarchive.main import app
+from aarchive.settings import Settings, get_settings
 
+app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None)
 client = TestClient(app)
 
 
@@ -31,5 +33,6 @@ def test_api_never_returns_credentials():
     payload = str(client.get("/api/capabilities").json()) + str(client.get("/health").json())
     assert "B2_APP_KEY" not in payload
     assert "OPENAI_API_KEY" not in payload
+    assert "GMI_API_KEY" not in payload
+    assert "NVIDIA_API_KEY" not in payload
     assert "secret" not in payload.lower()
-

@@ -2,6 +2,7 @@ services:
   - type: web
     name: aarchive-api
     runtime: docker
+    plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     healthCheckPath: /health
@@ -21,6 +22,19 @@ services:
         sync: false
       - key: B2_APP_KEY
         sync: false
+      - key: TRANSCRIPTION_PROVIDER
+        value: local_whisper
+      - key: LOCAL_WHISPER_MODEL
+        value: tiny.en
+      - key: ANALYSIS_PROVIDER
+        value: local
+      - key: GENERATION_PROVIDER
+        value: gmicloud
+      - key: GENERATION_MODE
+        value: cached_only
+      - key: GMI_API_KEY
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
-

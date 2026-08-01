@@ -50,26 +50,32 @@ def get_store(config: Settings = Depends(get_settings)) -> B2Store:
 
 
 @app.get("/health")
-def health(config: Settings = Depends(get_settings)) -> dict:
+def health(config: Settings = Depends(get_settings), store: B2Store = Depends(get_store)) -> dict:
     return {
         "status": "ok",
         "service": "aarchive-api",
         "b2_configured": config.b2_configured,
+        "b2_connected": store.connected(),
         "generation_configured": config.generation_configured,
+        "generation_mode": config.generation_mode,
     }
 
 
 @app.get("/api/projects", response_model=list[Project])
 def projects(store: B2Store = Depends(get_store)):
-    return store.list_projects()
+    return [store.with_download_urls(project) for project in store.list_projects()]
 
 
 @app.get("/api/projects/{project_id}")
 def project_detail(project_id: str, store: B2Store = Depends(get_store)) -> dict:
     try:
-        project = store.get_project(project_id)
+        project = store.with_download_urls(store.get_project(project_id))
         corrections = {item.scene_id: item for item in store.get_corrections(project_id)}
-        scenes = [apply_correction(scene, corrections.get(scene.scene_id)) for scene in store.get_scenes(project_id)]
+        try:
+            original_scenes = store.get_scenes(project_id)
+        except StorageUnavailable:
+            original_scenes = []
+        scenes = [apply_correction(scene, corrections.get(scene.scene_id)) for scene in original_scenes]
         return {"project": project, "scenes": scenes, "corrections": list(corrections.values())}
     except StorageUnavailable as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -110,6 +116,8 @@ def process_project(project_id: str, tasks: BackgroundTasks, store: B2Store = De
     project = store.get_project(project_id)
     if project.seeded_demo:
         raise HTTPException(status_code=400, detail="The seeded public demo is already processed")
+    if not store.exists(source_key(project_id)):
+        raise HTTPException(status_code=409, detail="The source MP4 is not present in B2; upload it before processing")
     tasks.add_task(VideoProcessor(config, store).process, project_id)
     return {"project_id": project_id, "status": "extracting", "message": "Processing started"}
 
@@ -178,8 +186,14 @@ def generate_brief(payload: BriefRequest, store: B2Store = Depends(get_store), c
         selected = [scene_map[scene_id] for scene_id in payload.scene_ids]
     except KeyError as exc:
         raise HTTPException(status_code=400, detail=f"Unknown scene: {exc.args[0]}") from exc
+    service = GenblazeBriefService(config)
+    cached_key = brief_key(payload.project_id, service.brief_id_for(payload), "brief.json")
     try:
-        brief = GenblazeBriefService(config).generate(payload, project.title, selected)
+        return Brief.model_validate(store.get_json(cached_key))
+    except StorageUnavailable:
+        pass
+    try:
+        brief = service.generate(payload, project.title, selected)
         store.put_json(brief_key(payload.project_id, brief.brief_id, "brief.json"), brief)
         return brief
     except GenerationUnavailable as exc:
@@ -190,14 +204,24 @@ def generate_brief(payload: BriefRequest, store: B2Store = Depends(get_store), c
 
 @app.get("/api/capabilities")
 def capabilities(config: Settings = Depends(get_settings)) -> dict:
+    provider_models = {
+        "gmicloud": [config.gmi_image_model, config.gmi_audio_model],
+        "nvidia": [config.nvidia_image_model, config.nvidia_audio_model],
+        "openai": [config.openai_image_model, config.openai_tts_model],
+    }
     return {
         "max_upload_mb": config.max_upload_mb,
         "b2": {"configured": config.b2_configured, "bucket": config.b2_bucket or None},
         "generation": {
             "configured": config.generation_configured,
-            "provider": "OpenAI via Genblaze",
-            "models": [config.openai_image_model, config.openai_tts_model],
+            "provider": config.generation_provider,
+            "mode": config.generation_mode,
+            "models": provider_models.get(config.generation_provider, []),
+        },
+        "processing": {
+            "transcription_provider": config.transcription_provider,
+            "transcription_model": config.local_whisper_model if config.transcription_provider == "local_whisper" else config.openai_transcription_model,
+            "analysis_provider": config.analysis_provider,
         },
         "server_time": datetime.now(timezone.utc).isoformat(),
     }
-
