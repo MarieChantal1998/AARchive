@@ -1,0 +1,33 @@
+[project]
+name = "aarchive-api"
+version = "0.1.0"
+description = "FastAPI backend for the AARchive hackathon MVP"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi==0.116.1",
+  "uvicorn[standard]==0.35.0",
+  "pydantic-settings==2.10.1",
+  "boto3==1.40.1",
+  "python-multipart==0.0.20",
+  "openai==1.98.0",
+  "genblaze==0.4.5",
+  "genblaze-core==0.3.8",
+  "genblaze-openai==0.3.4",
+  "genblaze-s3==0.3.6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx==0.28.1",
+  "pytest==8.4.1",
+  "pytest-asyncio==1.1.0",
+  "ruff==0.12.7",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -1,0 +1,58 @@
+import Link from "next/link";
+import { ArrowUpRight, CheckCircle2, Clock3, Database, FileAudio2, Layers3, Plus, Sparkles } from "lucide-react";
+import { SearchBox } from "./components/SearchBox";
+import { StatusPill } from "./components/StatusPill";
+import { projects, suggestedQueries } from "./lib/demo-data";
+
+export default function LibraryPage() {
+  return (
+    <div className="page library-page">
+      <header className="page-header split-header">
+        <div><p className="eyebrow">Training intelligence library</p><h1>Find the moment.<br /><span>Carry the lesson forward.</span></h1></div>
+        <Link className="button primary" href="/upload"><Plus size={17} /> Add footage</Link>
+      </header>
+
+      <section className="hero-search">
+        <div className="hero-search-heading"><Sparkles size={18} /><span>Search across transcripts, scene observations, and human corrections</span></div>
+        <SearchBox />
+        <div className="query-row"><span>Try</span>{suggestedQueries.map((query) => <Link key={query} href={`/search?q=${encodeURIComponent(query)}`}>{query}</Link>)}</div>
+      </section>
+
+      <section className="metric-strip" aria-label="Library statistics">
+        <div><strong>03</strong><span>training videos</span></div><i />
+        <div><strong>17</strong><span>indexed scenes</span></div><i />
+        <div><strong>03</strong><span>after-action briefs</span></div><i />
+        <div className="b2-metric"><Database size={18} /><strong>B2</strong><span>durable object store</span></div>
+      </section>
+
+      <section className="section-block">
+        <div className="section-heading"><div><p className="eyebrow">Your collection</p><h2>Training footage</h2></div><span className="muted">Loaded from project metadata objects</span></div>
+        <div className="project-grid">
+          {projects.map((project, index) => (
+            <article className={`project-card ${index === 0 ? "featured" : ""}`} key={project.id}>
+              <div className={`project-image ${!project.thumbnail ? "placeholder-image" : ""}`} style={project.thumbnail ? { backgroundImage: `linear-gradient(180deg, transparent 35%, rgba(9,12,13,.88)), url("${project.thumbnail}")` } : undefined}>
+                <div className="image-top"><StatusPill status={project.status} />{index === 0 && <span className="demo-label">PUBLIC DEMO</span>}</div>
+                <div className="image-bottom"><Clock3 size={14} /> {project.duration}</div>
+              </div>
+              <div className="project-body">
+                <div className="project-type">{project.type}</div>
+                <h3>{project.title}</h3>
+                <p>{project.description}</p>
+                <div className="project-meta"><span>{project.date}</span><span><Layers3 size={14} /> {project.scenes} scenes</span><span><FileAudio2 size={14} /> {project.briefs} briefs</span></div>
+                <div className="card-footer"><span><Database size={13} /> {project.storage}</span>{index === 0 ? <Link href={`/videos/${project.id}`}>Open project <ArrowUpRight size={15} /></Link> : <span className="muted">{project.status === "Ready" ? "Synthetic record" : "Processing"}</span>}</div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="workflow-callout">
+        <div className="workflow-copy"><p className="eyebrow">A simple evidence trail</p><h2>From raw footage to a reviewable brief.</h2><p>Every machine-generated observation stays linked to its source timestamp. Human corrections remain separate and take precedence in future search.</p></div>
+        <div className="workflow-steps">
+          {["Upload to B2", "Extract & organize", "Search exact moments", "Generate with Genblaze"].map((step, i) => <div key={step}><span>0{i + 1}</span><strong>{step}</strong>{i < 3 && <ArrowUpRight size={16} />}</div>)}
+        </div>
+        <div className="trust-note"><CheckCircle2 size={17} /><span>Designed for human review. No identity recognition, readiness scoring, or government-system claims.</span></div>
+      </section>
+    </div>
+  );
+}
