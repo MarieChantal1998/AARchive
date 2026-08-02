@@ -1,5 +1,17 @@
+const PUBLIC_API_URL = "https://aarchive-api.onrender.com";
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+const configuredForLoopback = configuredApiUrl
+  ? /^https?:\/\/(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(configuredApiUrl)
+  : false;
+const runningOnLoopback = typeof window !== "undefined"
+  && ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
+// Never send a visitor on the deployed site to their own localhost when a
+// developer's local .env was present during a frontend build.
 export const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "https://aarchive-api.onrender.com"
+  configuredApiUrl && (!configuredForLoopback || runningOnLoopback)
+    ? configuredApiUrl
+    : PUBLIC_API_URL
 ).replace(/\/$/, "");
 
 export type ApiProject = {

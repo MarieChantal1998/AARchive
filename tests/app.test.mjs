@@ -35,3 +35,10 @@ test("frontend sources contain no credential-shaped environment access", async (
   assert.doesNotMatch(combined, /B2_APP_KEY|B2_KEY_ID|OPENAI_API_KEY|sk-[A-Za-z0-9]/);
   assert.doesNotMatch(combined, /process\.env\.(?!NEXT_PUBLIC_)/);
 });
+
+test("public frontend cannot route judges to a developer loopback API", async () => {
+  const api = await readFile(new URL("app/lib/api.ts", root), "utf8");
+  assert.match(api, /https:\/\/aarchive-api\.onrender\.com/);
+  assert.match(api, /configuredForLoopback/);
+  assert.match(api, /runningOnLoopback/);
+});
