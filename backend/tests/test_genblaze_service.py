@@ -29,7 +29,7 @@ def test_service_source_uses_real_genblaze_api():
     assert "GMICloudImageProvider" in providers
     assert "GMICloudAudioProvider" in providers
     assert "NvidiaImageProvider" in providers
-    assert "NvidiaAudioProvider" in providers
+    assert "NvidiaHostedMagpieAudioProvider" in providers
     assert "DalleProvider" in providers
     assert "OpenAITTSProvider" in providers
 
@@ -38,3 +38,20 @@ def test_brief_id_is_stable_for_cached_generation():
     first = BriefRequest(project_id="project", scene_ids=["scene-002", "scene-001"])
     second = BriefRequest(project_id="project", scene_ids=["scene-001", "scene-002"])
     assert GenblazeBriefService.brief_id_for(first) == GenblazeBriefService.brief_id_for(second)
+
+
+def test_nvidia_provider_uses_current_hosted_contract(tmp_path):
+    settings = Settings(
+        b2_bucket="bucket",
+        b2_key_id="key-id",
+        b2_app_key="app-key",
+        generation_provider="nvidia",
+        generation_mode="generate_once",
+        nvidia_api_key="server-only-test-key",
+    )
+    provider = provider_for(settings)
+    assert provider.image_params == {"width": 1024, "height": 576, "steps": 4}
+    assert provider.audio_params["voice"] == "Magpie-Multilingual.EN-US.Aria"
+    audio_provider = provider.audio_factory(tmp_path)
+    assert audio_provider.__class__.__name__ == "NvidiaHostedMagpieAudioProvider"
+    audio_provider.close()

@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     nvidia_api_key: str = ""
     nvidia_image_model: str = "black-forest-labs/flux.1-schnell"
     nvidia_audio_model: str = "nvidia/magpie-tts-multilingual"
+    nvidia_tts_synthesize_url: str = (
+        "https://877104f7-e885-42b9-8de8-f6e4c6303969.invocation.api.nvcf.nvidia.com"
+        "/v1/audio/synthesize"
+    )
+    nvidia_tts_voices_url: str = (
+        "https://877104f7-e885-42b9-8de8-f6e4c6303969.invocation.api.nvcf.nvidia.com"
+        "/v1/audio/list_voices"
+    )
 
     openai_api_key: str = ""
     openai_transcription_model: str = "gpt-4o-mini-transcribe"

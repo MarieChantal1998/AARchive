@@ -165,6 +165,12 @@ Run everything:
 npm run test:all
 ```
 
+If the virtual environment is not activated, point the test command at its Python executable:
+
+```bash
+AARCHIVE_PYTHON=/path/to/venv/bin/python npm run test:all
+```
+
 Focused commands:
 
 ```bash

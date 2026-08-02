@@ -1,5 +1,7 @@
 import logging
 from dataclasses import dataclass
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
@@ -138,28 +140,30 @@ class GenblazeBriefService:
     def _run_pipeline(self, project_id: str, brief_id: str, cover_prompt: str, narration: str, provider):
         from genblaze_core import Modality, Pipeline
 
-        result = (
-            Pipeline("aarchive-after-action-brief", project_id=project_id)
-            .step(
-                provider.image_factory(),
-                model=provider.image_model,
-                prompt=cover_prompt,
-                modality=Modality.IMAGE,
-                **provider.image_params,
+        with TemporaryDirectory(prefix="aarchive-genblaze-") as temp_dir:
+            output_dir = Path(temp_dir)
+            result = (
+                Pipeline("aarchive-after-action-brief", project_id=project_id)
+                .step(
+                    provider.image_factory(output_dir),
+                    model=provider.image_model,
+                    prompt=cover_prompt,
+                    modality=Modality.IMAGE,
+                    **provider.image_params,
+                )
+                .step(
+                    provider.audio_factory(output_dir),
+                    model=provider.audio_model,
+                    prompt=narration,
+                    modality=Modality.AUDIO,
+                    **provider.audio_params,
+                )
             )
-            .step(
-                provider.audio_factory(),
-                model=provider.audio_model,
-                prompt=narration,
-                modality=Modality.AUDIO,
-                **provider.audio_params,
+            completed = result.run(
+                sink=self._sink(project_id, brief_id),
+                timeout=self.settings.generation_timeout_seconds,
+                max_retries=0,
             )
-        )
-        completed = result.run(
-            sink=self._sink(project_id, brief_id),
-            timeout=self.settings.generation_timeout_seconds,
-            max_retries=1,
-        )
         if len(completed.run.steps) != 2:
             raise GenerationFailed("Genblaze did not return both required media steps")
         image = _asset_run(completed.run.steps[0].assets[0])
