@@ -118,16 +118,15 @@ def demo_brief(cover_url: str = "", narration_url: str = "") -> Brief:
         review_notice="Generated from selected footage observations and must be reviewed by a qualified human.",
         cover_url=cover_url or None,
         narration_url=narration_url or None,
-        provider="OpenAI through Genblaze (live endpoint); seeded text-only preview",
-        models=["gpt-image-1", "gpt-4o-mini-tts"],
+        provider="Seeded text-only preview; no provider call",
+        models=[],
         generated_at=datetime(2026, 7, 31, 18, 0, tzinfo=timezone.utc),
         manifest_hash=None,
         verification_status="not_generated",
         provenance={
-            "pipeline": "aarchive-after-action-brief",
-            "storage_sink": "Backblaze B2 via Genblaze ObjectStorageSink",
-            "note": "This seeded preview does not claim a verified manifest. Use Generate with configured credentials for a real persisted run.",
+            "pipeline": "Not run for this seeded preview",
+            "storage_sink": "Not used for this seeded preview",
+            "note": "This seeded preview contains no generated media and does not claim a provider call or verified manifest.",
         },
         seeded_demo=True,
     )
-
