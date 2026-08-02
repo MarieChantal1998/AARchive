@@ -42,3 +42,10 @@ test("public frontend cannot route judges to a developer loopback API", async ()
   assert.match(api, /configuredForLoopback/);
   assert.match(api, /runningOnLoopback/);
 });
+
+test("brief audio refreshes when seeded state is replaced by a B2 brief", async () => {
+  const brief = await readFile(new URL("app/briefs/[id]/page.tsx", root), "utf8");
+  assert.match(brief, /<audio key=\{brief\.narration_url\}/);
+  assert.match(brief, /src=\{brief\.narration_url\}/);
+  assert.doesNotMatch(brief, /<source src=\{brief\.narration_url\}/);
+});
