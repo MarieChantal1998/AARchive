@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     frontend_origins: str = "http://localhost:3000"
     max_upload_mb: int = Field(default=500, ge=1, le=5000)
     processing_timeout_seconds: int = 900
-    generation_timeout_seconds: int = 180
+    generation_timeout_seconds: int = 480
 
     b2_endpoint_url: str = "https://s3.us-west-004.backblazeb2.com"
     b2_region: str = "us-west-004"
@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     nvidia_api_key: str = ""
     nvidia_image_model: str = "black-forest-labs/flux.1-schnell"
     nvidia_audio_model: str = "nvidia/magpie-tts-multilingual"
+    nvidia_http_timeout_seconds: int = 360
     nvidia_tts_synthesize_url: str = (
         "https://877104f7-e885-42b9-8de8-f6e4c6303969.invocation.api.nvcf.nvidia.com"
         "/v1/audio/synthesize"

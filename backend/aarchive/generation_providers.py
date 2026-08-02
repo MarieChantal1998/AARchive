@@ -53,13 +53,16 @@ def provider_for(settings: Settings) -> GenerationProvider:
             image_model=settings.nvidia_image_model,
             audio_model=settings.nvidia_audio_model,
             image_factory=lambda output_dir: NvidiaImageProvider(
-                api_key=settings.nvidia_api_key, output_dir=output_dir
+                api_key=settings.nvidia_api_key,
+                output_dir=output_dir,
+                http_timeout=settings.nvidia_http_timeout_seconds,
             ),
             audio_factory=lambda output_dir: NvidiaHostedMagpieAudioProvider(
                 api_key=settings.nvidia_api_key,
                 output_dir=output_dir,
                 synthesize_url=settings.nvidia_tts_synthesize_url,
                 voices_url=settings.nvidia_tts_voices_url,
+                http_timeout=settings.nvidia_http_timeout_seconds,
             ),
             image_params={"width": 1024, "height": 576, "steps": 4},
             audio_params={

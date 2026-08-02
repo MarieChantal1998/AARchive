@@ -52,6 +52,9 @@ def test_nvidia_provider_uses_current_hosted_contract(tmp_path):
     provider = provider_for(settings)
     assert provider.image_params == {"width": 1024, "height": 576, "steps": 4}
     assert provider.audio_params["voice"] == "Magpie-Multilingual.EN-US.Aria"
+    image_provider = provider.image_factory(tmp_path)
+    assert image_provider._client._http_timeout == 360
+    image_provider.close()
     audio_provider = provider.audio_factory(tmp_path)
     assert audio_provider.__class__.__name__ == "NvidiaHostedMagpieAudioProvider"
     audio_provider.close()
