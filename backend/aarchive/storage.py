@@ -1,13 +1,14 @@
 import json
 from datetime import datetime
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from .keys import frame_key, metadata_key, source_key
-from .models import Correction, Project, Scene
+from .models import Brief, Correction, Project, Scene
 from .seed import DEMO_SCENES, demo_project
 from .settings import Settings
 
@@ -109,6 +110,30 @@ class B2Store:
         if hydrated.indexed_scene_count and self.exists(frame_key(project.project_id, 1)):
             hydrated.thumbnail_url = self.presign_download(frame_key(project.project_id, 1))
         return hydrated
+
+    def with_brief_download_urls(self, brief: Brief) -> Brief:
+        """Return a response copy with short-lived URLs for private B2 assets."""
+        hydrated = brief.model_copy(deep=True)
+        if hydrated.seeded_demo:
+            return hydrated
+        for field in ("cover_url", "narration_url", "manifest_uri"):
+            durable_url = getattr(hydrated, field)
+            key = self._key_from_storage_url(durable_url)
+            if key:
+                setattr(hydrated, field, self.presign_download(key))
+        return hydrated
+
+    def _key_from_storage_url(self, url: str | None) -> str | None:
+        if not url:
+            return None
+        parsed = urlparse(url)
+        path = unquote(parsed.path).lstrip("/")
+        bucket_prefix = f"{self.settings.b2_bucket}/"
+        if path.startswith(bucket_prefix):
+            path = path[len(bucket_prefix) :]
+        if path.startswith("projects/") and ".." not in path.split("/"):
+            return path
+        return None
 
     def list_keys(self, prefix: str = "projects/") -> list[dict[str, Any]]:
         output: list[dict[str, Any]] = []

@@ -36,3 +36,42 @@ def test_api_never_returns_credentials():
     assert "GMI_API_KEY" not in payload
     assert "NVIDIA_API_KEY" not in payload
     assert "secret" not in payload.lower()
+
+
+def test_private_brief_assets_are_presigned_without_changing_durable_record():
+    from aarchive.models import Brief
+    from aarchive.storage import B2Store
+
+    class FakeClient:
+        def generate_presigned_url(self, operation, Params, ExpiresIn):
+            return f"https://signed.example/{Params['Key']}?expires={ExpiresIn}"
+
+    settings = Settings(b2_bucket="bucket", b2_key_id="id", b2_app_key="secret")
+    store = B2Store(settings)
+    store._client = FakeClient()
+    durable = Brief.model_validate(
+        {
+            "brief_id": "8eb28934-d786-5dc2-b134-12dc027e3d23",
+            "project_id": "project",
+            "title": "Brief",
+            "situation_summary": "Summary",
+            "what_occurred": [],
+            "positive_behaviors": [],
+            "improvement_opportunity": "Review",
+            "discussion_questions": [],
+            "source_timestamps": [],
+            "review_notice": "Review required",
+            "cover_url": "https://s3.example/bucket/projects/project/briefs/id/cover.png",
+            "narration_url": "https://s3.example/bucket/projects/project/briefs/id/narration.mp3",
+            "provider": "local",
+            "models": ["image", "audio"],
+            "generated_at": "2026-08-02T00:00:00Z",
+            "manifest_uri": "https://s3.example/bucket/projects/project/briefs/id/manifest.json",
+            "verification_status": "verified",
+        }
+    )
+    hydrated = store.with_brief_download_urls(durable)
+    assert hydrated.cover_url.startswith("https://signed.example/projects/")
+    assert hydrated.narration_url.startswith("https://signed.example/projects/")
+    assert hydrated.manifest_uri.startswith("https://signed.example/projects/")
+    assert durable.cover_url.startswith("https://s3.example/bucket/")

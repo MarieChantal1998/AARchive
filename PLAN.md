@@ -1,10 +1,10 @@
 # AARchive MVP execution plan
 
-1. Establish the monorepo, configuration contract, B2 object layout, and seeded demo data.
-2. Build the FastAPI API for B2-backed projects, upload signing, processing states, scene search, corrections, and briefs.
-3. Implement FFmpeg extraction, timestamped transcript segmentation, conservative AI analysis, and retryable processing.
-4. Integrate a real Genblaze `Pipeline` with OpenAI image + TTS providers and a Backblaze B2 object-storage sink; retain and expose safe provenance fields.
-5. Build the responsive library, upload, search, video-detail, and brief-detail experiences around one preprocessed public/synthetic demo.
-6. Add focused frontend/backend tests, complete documentation, validate builds, and deploy the frontend plus a documented backend service target.
+1. **Complete:** establish the TypeScript/FastAPI repository, configuration contract, B2 object layout, and unchanged seeded demo.
+2. **Complete:** deploy the public frontend and free Render backend; connect health, CORS, and the real B2 bucket.
+3. **Complete:** upload and process a synthetic MP4 into B2 source, audio, frames, transcript, scenes, and logs.
+4. **Complete:** verify search ranking, exact `16.84`-second seeking, separate human corrections, and correction precedence.
+5. **Complete:** run a real two-step Genblaze Pipeline with the $0 local media fallback; persist one PNG, one 67-second MP3, one verified manifest, and `brief.json` to B2.
+6. **In progress:** deploy private-brief presigning, verify the public brief page and cached-only behavior, then run the final test and secret-scan checklist.
 
-Demo reliability takes priority over optional scope. Missing cloud credentials must produce explicit capability states, while the seeded B2-compatible demo remains browsable and searchable.
+Demo reliability and truthful status take priority over optional scope. GMI Cloud and OpenAI remain disabled; NVIDIA failures are recorded as failed runs and never represented as successful outputs.

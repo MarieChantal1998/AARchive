@@ -2,76 +2,101 @@
 
 **Turn training footage into searchable lessons.**
 
-AARchive turns unstructured public, synthetic, reenacted, or user-created training footage into searchable timestamped observations, then assembles selected moments into reusable after-action training briefs.
+AARchive turns public, synthetic, reenacted, or user-created training footage into searchable timestamped observations and reusable after-action training briefs.
+
+- Public app: [aarchive-lessons.space-girl-in-love.chatgpt.site](https://aarchive-lessons.space-girl-in-love.chatgpt.site/)
+- FastAPI backend: [aarchive-api.onrender.com](https://aarchive-api.onrender.com/health)
+- Public repository: [github.com/MarieChantal1998/AARchive](https://github.com/MarieChantal1998/AARchive)
 
 This is a two-day hackathon prototype. It is not approved by, affiliated with, or deployed by the Department of Defense or I/ITSEC. It is not designed for classified or sensitive operational data.
 
 ## Product overview
 
-Training teams can accumulate hours of useful exercise footage while remaining unable to retrieve a specific moment without already knowing its filename and timestamp. AARchive makes the footage addressable: upload a video, extract timestamped evidence, search in ordinary language, verify scene observations, and generate a narrated brief that always points back to source moments.
+Training teams can accumulate hours of useful exercise footage while remaining unable to retrieve a specific moment without already knowing its filename and timestamp. AARchive makes footage addressable: upload an MP4, extract timestamped evidence, search in ordinary language, verify scene observations, and assemble selected moments into a narrated brief linked to source timestamps.
 
-The deployed frontend includes a public-domain, preprocessed emergency-response exercise so the workflow is immediately testable without cloud credentials or generation wait time. Synthetic secondary records demonstrate library and processing states; only the public demo opens as footage.
+The public app includes both an unchanged seeded demonstration and a real processed synthetic exercise stored in Backblaze B2. The real project can be searched, opened at `16.84` seconds, corrected, and linked to a previously generated B2-hosted brief.
+
+## Verified deployment status
+
+| Capability | Verified state | Evidence |
+|---|---|---|
+| Frontend | Publicly deployed | OpenAI Sites URL above |
+| Backend | Publicly deployed on Render Free | `/health` reports B2 connected |
+| GitHub | Public and pushed | `master`, latest repository URL above |
+| Video workflow | End-to-end verified | Synthetic MP4, audio, frames, transcript, scenes, logs in B2 |
+| Search and seeking | End-to-end verified | Corrected `scene-002`, `16.84–34.64`, seeks to `16.84` |
+| Human correction | End-to-end verified | Separate B2 correction overrides the machine observation |
+| Genblaze media | End-to-end verified | Run `b41e0cca-332b-4259-be84-c0518be665dd` |
+| Generated cover | Connected to real B2 | 59,055-byte PNG; SHA-256 verified |
+| Generated narration | Connected to real B2 | 67-second MP3; SHA-256 verified |
+| Provenance | Connected to real B2 | Canonical hash `18d39e64d0207aba9956f5b1c21e86c2f940b720dc2bbd03e59c0b8ac344e3b0` |
+| Public regeneration | Disabled | Backend remains `cached_only` |
+
+No paid service, card, automatic billing, or automatic reload was activated.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Browser -->|"browse and search"| Next["Next.js / TypeScript"]
-    Browser -->|"presigned PUT"| B2["Backblaze B2"]
-    Next -->|"JSON"| API["FastAPI / Python 3.11+"]
-    API --> B2
-    API --> Worker["FFmpeg processor"]
-    Worker --> AI["OpenAI transcript + analysis"]
-    API --> GB["Genblaze Pipeline"]
-    GB --> Image["OpenAI image"]
-    GB --> TTS["OpenAI TTS"]
-    GB -->|"assets + manifests"| B2
+    Browser --> Frontend["Next.js / TypeScript frontend"]
+    Browser -->|"presigned MP4 PUT"| B2["Backblaze B2"]
+    Frontend -->|"JSON API"| API["FastAPI on Render Free"]
+    API -->|"private presigned reads / durable JSON"| B2
+    API --> Processor["FFmpeg + faster-whisper + local scene analysis"]
+    Processor --> B2
+    LocalRun["One-time local media run"] --> Pipeline["Real Genblaze Pipeline"]
+    Pipeline --> Card["Pillow lesson-card provider"]
+    Pipeline --> TTS["macOS Say + FFmpeg narration provider"]
+    Pipeline -->|"ObjectStorageSink + canonical manifest"| B2
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and object layout.
 
 ## User workflow
 
-1. Open the library and use the seeded search or enter a natural-language query.
-2. Review ranked scene summaries, excerpts, tags, confidence, and timestamp ranges.
-3. Choose **Open moment** to seek the source video to `start_seconds`.
-4. Mark an observation accurate or needing correction; configured deployments persist a separate correction object.
-5. Select scenes and open or generate an after-action brief.
-6. Review the cover, narration, source timestamps, provider/model information, and safe provenance fields.
+1. Open the library or upload an authorized MP4 directly to B2 with a presigned URL.
+2. Process the footage with FFmpeg, local Whisper transcription, timestamp segmentation, and conservative machine observations.
+3. Search transcript text, summaries, tags, and human-corrected fields.
+4. Choose **Open moment** to seek the source video to the result’s `start_seconds`.
+5. Mark an observation accurate or needing correction; corrections remain separate and take precedence.
+6. Select scenes and open the cached after-action brief.
+7. Review the cover, 67-second narration, timestamps, provider/model fields, hashes, and provenance.
 
 ## Backblaze B2 usage
 
-B2 is the application’s intended durable source of truth, not a backup. The API lists library records from project JSON objects, creates direct-upload presigned URLs, streams private media with short-lived URLs, reads corrected scene metadata for search, and stores all generated assets and manifests.
+B2 is the durable system of record, not a backup. The public library reads real project JSON from B2. Source video, extracted audio, frames, transcript, scenes, corrections, processing logs, brief JSON, generated media, and Genblaze manifests all live under the project prefix. Source uploads use presigned direct PUTs; private video and brief assets are returned through short-lived presigned GET URLs.
 
-The repository also includes an explicit public-demo fallback because no B2 secret is embedded in a judge-facing frontend. With B2 configured, uploaded projects and generated briefs are read from the bucket.
+Verified bucket: `aarchive-nyirachantal1998-media`. The workflow remains well within Backblaze’s included 10 GB allowance.
 
 ## Genblaze usage
 
-The backend uses the current official Genblaze package family available on August 1, 2026: umbrella `genblaze` 0.4.5 with `genblaze-core` 0.3.8, `genblaze-openai` 0.3.4, and `genblaze-s3` 0.3.6.
+The successful demonstration uses a real `genblaze-core` `Pipeline` with two custom `SyncProvider` implementations:
 
-- `Pipeline` for both cover-image and narration runs;
-- `DalleProvider` with `gpt-image-1`;
-- `OpenAITTSProvider` with `gpt-4o-mini-tts`;
-- `S3StorageBackend.for_backblaze(...)`;
-- `ObjectStorageSink` with `KeyStrategy.HIERARCHICAL`;
-- conservative `max_retries=1` and explicit timeouts;
-- canonical manifest hashes, asset SHA-256 values, verification results, and manifest URIs captured in `brief.json`.
+- `LocalLessonCardProvider`, model `pillow-lesson-card-v1`, renders a prompt-derived professional training lesson card with open-source Pillow;
+- `LocalNarrationProvider`, model `macos-say-tts-v1`, creates offline narration with macOS Say and encodes it to MP3 with FFmpeg;
+- `S3StorageBackend.for_backblaze(...)` and `ObjectStorageSink` persist assets and the provenance manifest to B2;
+- `KeyStrategy.HIERARCHICAL` preserves Genblaze’s run layout;
+- `max_retries=0` prevents duplicate expensive work;
+- asset SHA-256 values, the canonical manifest hash, manifest URI, run ID, and verification result are recorded in `brief.json`.
 
-The live endpoint fails clearly when credentials or providers are unavailable and never substitutes a fake success. The seeded brief’s visual/audio are explicitly labeled as unverified demo assets; the UI does not claim they came from a verified Genblaze run.
+This fallback is intentionally described as local automated media generation, not as diffusion-model image generation. It costs $0, uses no hosted inference API, and preserves meaningful Genblaze execution and provenance.
 
-Official references used for implementation: [Genblaze repository](https://github.com/backblaze-labs/genblaze), [Backblaze Genblaze Developer Guide](https://www.backblaze.com/docs/cloud-storage-genblaze-developer-guide), and [Genblaze on PyPI](https://pypi.org/project/genblaze/).
+The current `genblaze-nvidia==0.3.3` adapter was also integrated and exercised with the free NVIDIA trial. Magpie’s current hosted Riva preflight succeeded, but two FLUX attempts failed truthfully with a read timeout and a provider-side `504`; Genblaze stored failed-run manifests and no NVIDIA media was claimed. GMI Cloud and OpenAI integrations remain optional but disabled because no funded API service is available.
 
-## Providers and models used
+Official implementation references: [Genblaze repository](https://github.com/backblaze-labs/genblaze), [Backblaze Genblaze Developer Guide](https://www.backblaze.com/docs/cloud-storage-genblaze-developer-guide), [Genblaze on PyPI](https://pypi.org/project/genblaze/), and [NVIDIA Magpie TTS API](https://build.nvidia.com/nvidia/magpie-tts-multilingual/api).
 
-| Purpose | Provider / model | Path |
+## Providers and models actually used
+
+| Purpose | Actual provider / model | Cost |
 |---|---|---|
-| Transcription | OpenAI `gpt-4o-mini-transcribe` | Processing service |
-| Scene structuring | OpenAI `gpt-4.1-mini` | Processing service |
-| Brief cover | OpenAI `gpt-image-1` | Genblaze `DalleProvider` |
-| Narration | OpenAI `gpt-4o-mini-tts`, voice `coral` | Genblaze `OpenAITTSProvider` |
-| Durable storage | Backblaze B2 S3-compatible API | boto3 + Genblaze storage sink |
+| Transcription | local `faster-whisper`, `tiny.en` | $0 |
+| Scene structuring | deterministic local transcript segmentation and conservative tag analysis | $0 |
+| Brief text | deterministic selected-scene assembly with human-correction precedence | $0 |
+| Brief cover | Pillow `pillow-lesson-card-v1` through Genblaze | $0 |
+| Narration | macOS Say `macos-say-tts-v1`, Samantha at 155 wpm, encoded by FFmpeg | $0 |
+| Durable storage | Backblaze B2 S3-compatible API and Genblaze S3 sink | Free allowance |
 
-Models are environment-configurable. Genblaze provider classes and method signatures are pinned to the version tested in `backend/pyproject.toml`.
+Optional disabled providers: GMI Cloud image/audio, NVIDIA NIM image/Magpie TTS, and OpenAI image/TTS. OpenAI is never selected unless `OPENAI_API_KEY` is present and funded billing is explicitly available.
 
 ## B2 object layout
 
@@ -87,15 +112,21 @@ projects/{project_id}/
   metadata/processing-log.json
   briefs/{brief_id}/
     brief.json
-    cover.png
-    narration.mp3
-    manifest.json
-    genblaze/runs/{date}/{run_id}/...
+    genblaze/runs/{date}/{run_id}/
+      assets/{asset_id}.png
+      assets/{asset_id}.mp3
+      manifest.json
 ```
+
+## How B2 and Genblaze Are Essential
+
+B2 makes AARchive’s searchable library durable: removing it removes the real videos, timestamp metadata, corrections, generated media, and provenance. Genblaze turns the cover and narration into one traceable media workflow: removing it removes the run manifest, canonical hash, asset hashes, verification result, and hierarchical B2 persistence.
+
+The successful cached brief is not a static file copied into the frontend. It is loaded from B2 through FastAPI, and its media URLs are presigned at response time because the bucket is private.
 
 ## Local setup
 
-Requirements: Node 22.13+, Python 3.11+, and FFmpeg.
+Requirements: Node 22.13+, Python 3.11+, and FFmpeg. The zero-cost local narration provider additionally requires macOS Say.
 
 ```bash
 cp .env.example .env
@@ -116,108 +147,107 @@ source /tmp/aarchive-venv/bin/activate
 uvicorn aarchive.main:app --app-dir backend --reload --port 8000
 ```
 
-Open `http://localhost:3000`. API documentation is at `http://localhost:8000/docs`; health is at `/health`.
+Open `http://localhost:3000`; API documentation is at `http://localhost:8000/docs`.
 
 ## Environment variables
 
-Copy `.env.example`. Important server-only settings:
+Server-only B2 settings:
 
 - `B2_ENDPOINT_URL`, `B2_REGION`, `B2_BUCKET`, `B2_KEY_ID`, `B2_APP_KEY`
-- `B2_PUBLIC_URL_BASE` for an intentionally public bucket; omit it for presigned reads
-- `OPENAI_API_KEY`
-- `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_ANALYSIS_MODEL`, `OPENAI_IMAGE_MODEL`, `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`
-- `FRONTEND_ORIGINS`, `MAX_UPLOAD_MB`, and processing/generation timeouts
+- `B2_PUBLIC_URL_BASE` only for an intentionally public bucket; omit it for presigned reads
 
-Only `NEXT_PUBLIC_API_URL` is frontend-visible. Never expose storage or provider keys through a `NEXT_PUBLIC_` variable.
+Provider and processing settings:
+
+- `TRANSCRIPTION_PROVIDER=local_whisper`, `LOCAL_WHISPER_MODEL=tiny.en`, `ANALYSIS_PROVIDER=local`
+- `GENERATION_MODE=cached_only` in public deployments
+- `LOCAL_IMAGE_MODEL`, `LOCAL_AUDIO_MODEL`, `LOCAL_TTS_VOICE`, `LOCAL_TTS_RATE`
+- optional `GMI_API_KEY`, `NVIDIA_API_KEY`, or `OPENAI_API_KEY`; never expose these to the frontend
+
+Deployment settings:
+
+- `NEXT_PUBLIC_API_URL` is the only frontend-visible API setting
+- `FRONTEND_ORIGINS`, `MAX_UPLOAD_MB`, `PROCESSING_TIMEOUT_SECONDS`, `GENERATION_TIMEOUT_SECONDS`
+
+Never commit `.env` or place credentials in `NEXT_PUBLIC_*` values.
 
 ## Deployment
 
 ### Frontend
 
-The repository includes `.openai/hosting.json` and is deployable with OpenAI Sites. The build is Cloudflare Worker-compatible.
+The frontend is deployed with OpenAI Sites from the project containing `.openai/hosting.json`. Its configured backend is `https://aarchive-api.onrender.com`.
 
 ```bash
 npm run build
 ```
 
-Set `NEXT_PUBLIC_API_URL` in the hosted frontend environment to the HTTPS backend origin.
-
 ### Backend
 
-`render.yaml` and `backend/Dockerfile` define a deployable Python service. On Render, create a Blueprint from this repository and set all secret variables in the dashboard. Equivalent container services work with:
+`render.yaml` and `backend/Dockerfile` define the FastAPI service. The verified deployment uses Render’s free web-service plan, so an idle cold start may add roughly 50 seconds. No paid Render plan is required.
 
 ```bash
 docker build -f backend/Dockerfile -t aarchive-api .
 docker run --env-file .env -p 8000:8000 aarchive-api
 ```
 
-Add the deployed frontend origin to `FRONTEND_ORIGINS`. Confirm `/health`, then set the frontend API URL and redeploy the frontend.
+Set secrets only in the host dashboard, add the Sites origin to `FRONTEND_ORIGINS`, and verify `/health` before connecting the frontend.
 
 ## Demo credentials
 
-None. The seeded public-domain project and honest unverified demonstration brief require no login or API key. Upload, persisted corrections, processing, and live Genblaze generation activate only when server-side cloud credentials are configured.
+None. The public app and cached B2 brief require no judge-supplied API key. Public regeneration is disabled, so viewing or replaying the generated media does not trigger inference.
 
 ## Testing
 
-Run everything:
+Run frontend lint/build/tests and all backend tests:
 
 ```bash
 npm run test:all
 ```
 
-If the virtual environment is not activated, point the test command at its Python executable:
+If the virtual environment is not activated:
 
 ```bash
 AARCHIVE_PYTHON=/path/to/venv/bin/python npm run test:all
 ```
 
-Focused commands:
+Verify a cached brief directly against B2 without printing credentials:
 
 ```bash
-npm run lint
-npm run test:frontend
-npm run test:backend
+cd backend
+python -m scripts.verify_cached_brief PROJECT_ID BRIEF_ID
 ```
 
-Tests cover object keys, validation, transcript segmentation, ranking, timestamp formatting, human-correction precedence, the Genblaze boundary, explicit upload failure, and credential leakage.
+Tests cover B2 keys, metadata validation, segmentation, ranking, timestamps, correction precedence, Genblaze abstractions, current NVIDIA TTS transport, local media generation, private-asset presigning, failure states, and credential leakage.
 
 ## Security limitations
 
-- MP4-only content/type and size validation, UUID identifiers, fixed object-key builders, and conservative upload limits are implemented.
-- Source bytes go directly to B2 through presigned URLs; temporary processing directories are removed automatically.
-- Provider and B2 credentials are server-side only. API responses expose an allowlist of non-secret capability/provenance fields.
-- CORS is explicit. Provider calls have timeouts and one expensive-operation retry.
-- This prototype has no authentication or complex role-based access control.
-- It is not FedRAMP, CMMC, military, classified-data, or government-security compliant, and makes no such claim.
-- Before production use, add authentication, malware scanning, background job infrastructure, signed webhooks, audit retention, and tenant isolation.
+- MP4 type/size validation, UUID identifiers, fixed object-key builders, direct B2 uploads, and temporary-directory cleanup are implemented.
+- Provider and B2 credentials remain server-side. Private B2 assets use one-hour presigned response URLs.
+- CORS is explicit; generation has timeouts and zero automatic retries.
+- This prototype has no user authentication, malware scanning, tenant isolation, durable task queue, or complex role-based access control.
+- It is not FedRAMP, CMMC, military, classified-data, or government-security compliant and makes no such claim.
 
 ## Public/synthetic-data disclaimer
 
-Use only footage that is public, synthetic, reenacted, or user-created and authorized for upload. The included demonstration video is public-domain U.S. government media redistributed by Wikimedia Commons/DVIDS; its presence does not imply endorsement, affiliation, deployment, or approval. AI observations may be incomplete or wrong and always require human verification.
+Use only footage that is public, synthetic, reenacted, or user-created and authorized for upload. The seeded public-domain footage and real synthetic exercise do not imply government endorsement, affiliation, deployment, or approval. Machine observations may be incomplete or wrong and require qualified human review.
 
 ## Known limitations
 
-- Search uses deterministic weighted terms/tags in this stable MVP; an embeddings boundary can replace or augment it.
-- Processing runs as an in-process FastAPI background task, suitable for a hackathon demo but not durable production queues.
-- The deployed frontend can demonstrate the complete seeded flow without the backend; uploads and real generation require the separately deployed API and credentials.
-- Seeded image/audio assets are not represented as Genblaze-verified. A real live generation run is required to populate hashes and verified manifests.
-- Video-derived scene observations should be checked against the source before submission or reuse.
+- Search uses deterministic weighted terms and tags rather than embeddings.
+- Processing runs as an in-process FastAPI background task instead of a durable queue.
+- The successful $0 cover is a professionally composed lesson card, not a diffusion-model image.
+- Offline narration generation currently requires macOS; the generated 67-second MP3 is cached in B2 for the public demo.
+- The NVIDIA hosted FLUX trial returned a provider-side `504`, so no NVIDIA-generated image is claimed.
+- Render Free can cold-start after inactivity.
 
 ## Future roadmap
 
+- GMI Cloud media generation if hackathon credits become available
 - Durable task queue and resumable multipart uploads
-- Embeddings-based retrieval with hybrid keyword ranking
+- Embeddings-based hybrid retrieval
 - Scene-boundary vision analysis and reviewer edit history
-- Organization-safe authentication and per-project access
+- Authentication, tenant isolation, and malware scanning
 - Brief export to PDF/Slides and signed provenance verification
-- Evaluation datasets for timestamp precision and correction quality
-
-## How B2 and Genblaze Are Essential
-
-B2 makes the library possible: large source videos, frames, transcripts, corrections, processing logs, generated media, and provenance objects share one durable address space. The product loads its durable project collection from those objects and uses presigned URLs so private media can remain private.
-
-Genblaze makes the after-action brief a reproducible media pipeline instead of two unrelated API calls. It executes the supported image and TTS providers, transfers their outputs to B2, calculates asset hashes, writes canonical provenance manifests, and exposes verification results that AARchive can attach to each brief. Removing B2 removes the durable searchable library; removing Genblaze removes the verifiable generated-media workflow.
 
 ## Submission materials
 
-See [docs/submission.md](docs/submission.md) for a Devpost-ready description and three-minute demo outline.
+See [docs/submission.md](docs/submission.md) for the Devpost-ready description and three-minute demo outline.

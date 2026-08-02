@@ -173,7 +173,8 @@ def get_brief(project_id: str, brief_id: str, store: B2Store = Depends(get_store
     if project_id == "demo-coordinated-response" and brief_id == "11111111-1111-4111-8111-111111111111":
         return demo_brief(config.demo_cover_url, config.demo_narration_url)
     try:
-        return Brief.model_validate(store.get_json(brief_key(project_id, brief_id, "brief.json")))
+        brief = Brief.model_validate(store.get_json(brief_key(project_id, brief_id, "brief.json")))
+        return store.with_brief_download_urls(brief)
     except StorageUnavailable as exc:
         raise HTTPException(status_code=404, detail="Brief not found") from exc
 
@@ -189,13 +190,15 @@ def generate_brief(payload: BriefRequest, store: B2Store = Depends(get_store), c
     service = GenblazeBriefService(config)
     cached_key = brief_key(payload.project_id, service.brief_id_for(payload), "brief.json")
     try:
-        return Brief.model_validate(store.get_json(cached_key))
+        return store.with_brief_download_urls(Brief.model_validate(store.get_json(cached_key)))
     except StorageUnavailable:
         pass
     try:
         brief = service.generate(payload, project.title, selected)
         store.put_json(brief_key(payload.project_id, brief.brief_id, "brief.json"), brief)
-        return brief
+        project.brief_count += 1
+        store.put_json(metadata_key(payload.project_id, "project"), project)
+        return store.with_brief_download_urls(brief)
     except GenerationUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except GenerationFailed as exc:
@@ -205,6 +208,7 @@ def generate_brief(payload: BriefRequest, store: B2Store = Depends(get_store), c
 @app.get("/api/capabilities")
 def capabilities(config: Settings = Depends(get_settings)) -> dict:
     provider_models = {
+        "local": [config.local_image_model, config.local_audio_model],
         "gmicloud": [config.gmi_image_model, config.gmi_audio_model],
         "nvidia": [config.nvidia_image_model, config.nvidia_audio_model],
         "openai": [config.openai_image_model, config.openai_tts_model],

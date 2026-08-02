@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     generation_provider: str = "gmicloud"
     generation_mode: str = "cached_only"
 
+    local_image_model: str = "pillow-lesson-card-v1"
+    local_audio_model: str = "macos-say-tts-v1"
+    local_tts_voice: str = "Samantha"
+    local_tts_rate: int = 155
+
     gmi_api_key: str = ""
     gmi_text_model: str = "deepseek-ai/DeepSeek-V3"
     gmi_image_model: str = "seedream-5.0-lite"
@@ -70,6 +75,8 @@ class Settings(BaseSettings):
     def generation_configured(self) -> bool:
         if not self.b2_configured:
             return False
+        if self.generation_provider.lower() == "local":
+            return True
         return bool(self.generation_api_key)
 
     @property

@@ -9,6 +9,7 @@ dependencies = [
   "pydantic-settings==2.10.1",
   "boto3==1.40.1",
   "python-multipart==0.0.20",
+  "pillow==11.3.0",
   "faster-whisper==1.2.0",
   "requests==2.32.4",
   "openai==1.98.0",

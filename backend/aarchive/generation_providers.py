@@ -25,6 +25,19 @@ class GenerationProvider:
 
 def provider_for(settings: Settings) -> GenerationProvider:
     provider = settings.generation_provider.lower()
+    if provider == "local":
+        from .local_media import LocalLessonCardProvider, LocalNarrationProvider
+
+        return GenerationProvider(
+            slug="local",
+            display_name="Local Pillow + macOS Say through Genblaze",
+            image_model=settings.local_image_model,
+            audio_model=settings.local_audio_model,
+            image_factory=lambda output_dir: LocalLessonCardProvider(output_dir=output_dir),
+            audio_factory=lambda output_dir: LocalNarrationProvider(output_dir=output_dir),
+            image_params={"width": 1536, "height": 864},
+            audio_params={"voice": settings.local_tts_voice, "rate": settings.local_tts_rate},
+        )
     if provider == "gmicloud":
         if not settings.gmi_api_key:
             raise ProviderConfigurationError("GMI Cloud credits and a server-side API key are not configured")
