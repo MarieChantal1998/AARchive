@@ -50,6 +50,9 @@ class Settings(BaseSettings):
         "https://877104f7-e885-42b9-8de8-f6e4c6303969.invocation.api.nvcf.nvidia.com"
         "/v1/audio/list_voices"
     )
+    nvidia_tts_one_shot_enabled: bool = False
+    nvidia_tts_one_shot_project_id: str = "35fbaf01-8ecc-4b9c-a848-e1b59ecae00f"
+    nvidia_tts_one_shot_brief_id: str = "8eb28934-d786-5dc2-b134-12dc027e3d23"
 
     openai_api_key: str = ""
     openai_transcription_model: str = "gpt-4o-mini-transcribe"

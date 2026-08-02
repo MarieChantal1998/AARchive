@@ -30,6 +30,12 @@ def frame_key(project_id: str, index: int) -> str:
 
 def brief_key(project_id: str, brief_id: str, name: str) -> str:
     UUID(brief_id)
-    if name not in {"brief.json", "cover.png", "narration.mp3", "manifest.json"}:
+    if name not in {
+        "brief.json",
+        "brief.local-fallback.json",
+        "cover.png",
+        "narration.mp3",
+        "manifest.json",
+    }:
         raise ValueError("unsupported brief object")
     return f"{project_prefix(project_id)}/briefs/{brief_id}/{name}"

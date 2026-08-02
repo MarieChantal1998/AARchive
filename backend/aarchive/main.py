@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -29,8 +30,17 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application: FastAPI):
     logger.info("aarchive_api_started")
+    one_shot_task = None
+    if settings.nvidia_tts_one_shot_enabled:
+        from .nvidia_tts_once import run_nvidia_tts_one_shot
+
+        one_shot_task = asyncio.create_task(
+            asyncio.to_thread(run_nvidia_tts_one_shot, settings),
+            name="aarchive-nvidia-tts-one-shot",
+        )
+        application.state.nvidia_tts_one_shot_task = one_shot_task
     yield
 
 
